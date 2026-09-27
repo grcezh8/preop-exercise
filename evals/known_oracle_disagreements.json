@@ -1,0 +1,17 @@
+{
+  "_about": "cases where we follow the policy and knowingly differ from the expected output, each with the reason",
+  "cases": {
+    "case_00002": {
+      "field": "issue categories",
+      "expected": ["REQUIRED_DOCUMENTATION", "ACUTE_SAFETY_EXCLUSION"],
+      "ours": ["ACUTE_SAFETY_EXCLUSION"],
+      "reason": "documents[0] 'History & Phsyical' (typo) dated 2026-02-21 is an H&P 10 days before the procedure, its text says 'Pre-op H and P documented'. The expected output skips it and flags the older documents[1] (32 days) as outside the window. The policy is met by the newer H&P. The decision (NOT_CLEARED, fever) is the same."
+    },
+    "case_00042": {
+      "field": "evidence source",
+      "expected": "documents",
+      "ours": "documents[4]",
+      "reason": "documents[4] is titled 'Perioperative Medication Plan' and is the note that fails to give a plan ('final plan pending specialist input'). The expected output points at the whole list because the note says 'blood thinner' instead of naming the drug. Not scored by the harness."
+    }
+  }
+}

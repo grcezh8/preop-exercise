@@ -31,3 +31,8 @@ dist/
 data/baseline_outputs.jsonl
 data/eval_report.json
 data/determinism_report.json
+
+# per-case audit traces and llm answer cache
+data/audit/
+.triage_cache/
+.hypothesis/

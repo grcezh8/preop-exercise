@@ -36,6 +36,7 @@ test:
 		--with 'openai>=2.0.0' \
 		--with 'pydantic>=2.8.0' \
 		--with 'pytest>=8.0.0' \
+		--with 'hypothesis>=6.100' \
 		python -m pytest tests
 
 all: baseline evals determinism score
@@ -44,3 +45,4 @@ clean:
 	rm -f data/baseline_outputs.jsonl \
 		data/eval_report.json \
 		data/determinism_report.json
+	rm -rf data/audit
