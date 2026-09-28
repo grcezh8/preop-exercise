@@ -1,4 +1,4 @@
-"""what the harness scripts import, everything lives in the triage package"""
+"""what the evaluation scripts import, everything lives in the triage package"""
 
 from __future__ import annotations
 

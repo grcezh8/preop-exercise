@@ -10,7 +10,7 @@ from triage.schemas.findings import Findings, PlanFinding
 from triage.schemas.normalized import NormalizedCase
 from triage.schemas.output import TriageIssue
 
-
+#checks if missing anticoagulant active, then appends all of the issues in a human readable way with plan_issue()
 def check_anticoagulation(case: NormalizedCase, findings: Findings) -> list[TriageIssue]:
     issues: list[TriageIssue] = []
     for med in case.meds:
@@ -28,16 +28,20 @@ def check_anticoagulation(case: NormalizedCase, findings: Findings) -> list[Tria
             issues.append(_plan_issue(case, findings, plan))
     return issues
 
-
+#explains an issue that was found in findings about anticoag
 def _plan_issue(case: NormalizedCase, findings: Findings, plan: PlanFinding) -> TriageIssue:
     if plan.med_index is not None:
-        taking = f"Active anticoagulant {plan.drug} (medications[{plan.med_index}])"
+        # the name as written, plus the generic name when they differ, e.g. Xarelto (rivaroxaban, medications[1])
+        written = case.meds[plan.med_index].name_raw
+        same = written.strip().casefold() == plan.drug
+        where = f"medications[{plan.med_index}]" if same else f"{plan.drug}, medications[{plan.med_index}]"
+        taking = f"Active anticoagulant {written.strip() if written else plan.drug} ({where})"
     else:
         mention = next(m for m in findings.note_mentions if m.drug == plan.drug and m.doc_index == plan.mention_doc)
         doc = case.docs[mention.doc_index]
-        quote = mention.quote or excerpt(doc, mention.word)
+        # quoted from the original note, not the llm's (redacted) quote, so evidence matches the submission
         taking = (
-            f"Anticoagulant {plan.drug} mentioned in documents[{doc.index}] (\"{quote}\") "
+            f"Anticoagulant {plan.drug} mentioned in documents[{doc.index}] (\"{excerpt(doc, mention.word)}\") "
             f"but not active in medications"
         )
     if plan.checked_doc is None:

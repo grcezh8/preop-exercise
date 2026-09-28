@@ -1,4 +1,4 @@
-"""steps 5 and 6: picks the decision, writes the explanation, and checks the finished output"""
+"""picks the decision, writes the explanation, and checks the finished output"""
 
 from __future__ import annotations
 

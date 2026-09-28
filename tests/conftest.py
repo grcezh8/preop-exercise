@@ -18,3 +18,10 @@ def load_seed_cases() -> list[dict[str, Any]]:
 @pytest.fixture(scope="session")
 def seed_cases() -> list[dict[str, Any]]:
     return load_seed_cases()
+
+
+@pytest.fixture(autouse=True)
+def no_real_openai(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    # tests never reach the real api, even on a machine with a key set, and never share an answer cache
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("TRIAGE_CACHE_DIR", str(tmp_path / "cache"))

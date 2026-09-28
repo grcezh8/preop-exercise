@@ -1,5 +1,6 @@
-"""llm step d (python half): which blood thinners need a plan, which note to point at, and the pending-wording veto
-without the llm reading the plan nothing can pass, step 4 adds the llm half
+"""llm step d: does each blood thinner the patient takes have a plan for before and after surgery
+python picks the drugs, the notes, the passages and the pending veto, the llm extracts actions, timing and quotes,
+then code decides: a plan passes only when every part is stated, quoted from the notes, names the drug, and nothing blocks it
 """
 
 from __future__ import annotations
@@ -7,12 +8,29 @@ from __future__ import annotations
 import datetime as dt
 from dataclasses import dataclass
 
+from triage.config import Settings
+from triage.extract.reader import Reader, has_cue, quote_found
 from triage.normalize.case import find_anticoagulants
-from triage.normalize.text import find_first
+from triage.normalize.text import find_first, keyword_windows
 from triage.schemas.findings import NoteMention, PlanFinding
+from triage.schemas.llm import DrugPlan, Passage, PlanAnswer, PlanPrompt
 from triage.schemas.normalized import NormalizedCase, NormDoc
-from triage.vocab.anticoagulants import GENERIC_TERMS
-from triage.vocab.phrases import PLAN_PENDING
+from triage.vocab.anticoagulants import ANTICOAGULANTS, GENERIC_TERMS
+from triage.vocab.phrases import (
+    AFTER_ACTION_CUES,
+    AFTER_CONTEXT_CUES,
+    BEFORE_ACTION_CUES,
+    BEFORE_CONTEXT_CUES,
+    INJECTION,
+    PLAN_PENDING,
+    TIMING_CUES,
+)
+
+# words the passages sent to the llm are cut around, plus the drug names
+PLAN_WORDS = (
+    "hold", "held", "stop", "discontinu", "last dose", "resume", "restart", "bridg", "continu",
+    "pre-op", "preop", "post-op", "postop", "before surgery", "after surgery", "perioperative", "peri-op",
+)
 
 
 @dataclass(frozen=True)
@@ -56,28 +74,126 @@ def pointed_doc(candidates: list[NormDoc]) -> NormDoc | None:
 
 
 def pending_veto(candidates: list[NormDoc]) -> str | None:
+    # pending wording, or a note giving instructions, blocks the plan whatever the llm says
     for doc in candidates:
-        match = find_first(PLAN_PENDING, doc.text_clean)
+        match = find_first(INJECTION, doc.text_clean) or find_first(PLAN_PENDING, doc.text_clean)
         if match:
             return match.group(0)
     return None
 
 
-def assess_plans(case: NormalizedCase, mentions: list[NoteMention]) -> list[PlanFinding]:
+def assess_plans(
+    case: NormalizedCase, mentions: list[NoteMention], reader: Reader | None = None
+) -> list[PlanFinding]:
+    taken = drugs_needing_plan(case, mentions)
+    if not taken:
+        return []
+    candidates = {t.drug: candidate_docs(case, t.drug) for t in taken}
+    read, answered = _read_plans(case, taken, candidates, reader) if reader else ({}, False)
     findings: list[PlanFinding] = []
-    for taken in drugs_needing_plan(case, mentions):
-        candidates = candidate_docs(case, taken.drug)
-        doc = pointed_doc(candidates)
+    for t in taken:
+        docs = candidates[t.drug]
+        doc = pointed_doc(docs)
+        veto = pending_veto(docs)
+        if not docs:
+            gaps: tuple[str, ...] = ("no note describes a plan",)
+        elif reader is None:
+            gaps = ()
+        else:
+            gaps = read.get(t.drug, ("plan could not be read",))
         findings.append(
             PlanFinding(
-                drug=taken.drug,
-                med_index=taken.med_index,
-                mention_doc=taken.mention_doc,
-                passes=False,
+                drug=t.drug,
+                med_index=t.med_index,
+                mention_doc=t.mention_doc,
+                passes=reader is not None and bool(docs) and not gaps and veto is None,
                 checked_doc=doc.index if doc else None,
-                gaps=() if candidates else ("no note describes a plan",),
-                veto=pending_veto(candidates),
-                decided_by="default",
+                gaps=gaps,
+                veto=veto,
+                decided_by="llm" if answered else "default",
             )
         )
     return findings
+
+
+def _read_plans(
+    case: NormalizedCase, taken: list[TakenDrug], candidates: dict[str, list[NormDoc]], reader: Reader
+) -> tuple[dict[str, tuple[str, ...]], bool]:
+    # one llm call for all drugs, returns (drug -> gaps, whether the llm answered)
+    # empty gaps means the llm's answer fully backs a plan
+    docs = sorted({d.index: d for ds in candidates.values() for d in ds}.values(), key=lambda d: d.index)
+    if not docs:
+        return {}, False
+    drugs = [t.drug for t in taken]
+    passages, truncated = _passages(docs, drugs, reader.settings, reader)
+    prompt = PlanPrompt(drugs=drugs, passages=passages)
+    sent_text = "\n".join(p.text for p in passages)
+
+    def check(answer: PlanAnswer) -> str | None:
+        named = [p.drug.strip().casefold() for p in answer.plans]
+        if set(named) - set(drugs):
+            return "answer includes a drug that wasn't asked about"
+        if set(drugs) - set(named):
+            return "answer is missing a drug that was asked about"
+        for plan in answer.plans:
+            for quote in (plan.before_quote, plan.after_quote, plan.pending_quote):
+                if quote and not quote_found(quote, sent_text):
+                    return "a quote is not in the passages"
+        return None
+
+    asked = reader.ask("anticoag_plan", prompt, PlanAnswer, check)
+    if asked.value is None:
+        return {drug: (f"plan could not be read ({_short(asked.reason)})",) for drug in drugs}, False
+    by_drug = {p.drug.strip().casefold(): p for p in asked.value.plans}
+    return {drug: _gaps(by_drug[drug], drug, truncated) for drug in drugs}, True
+
+
+def _gaps(plan: DrugPlan, drug: str, truncated: bool) -> tuple[str, ...]:
+    # what's missing from the llm's answer, checked in code against the quotes it gave
+    gaps: list[str] = []
+    if plan.says_pending:
+        gaps.append("plan is marked pending or deferred")
+    if plan.before_action == "NOT_STATED":
+        gaps.append("no before-surgery action")
+    elif not plan.before_timing:
+        gaps.append("no before-surgery timing")
+    elif not _shows(plan.before_quote, BEFORE_ACTION_CUES, BEFORE_CONTEXT_CUES):
+        gaps.append("before-surgery quote doesn't show the action and timing")
+    if plan.after_action == "NOT_STATED":
+        gaps.append("no after-surgery action")
+    elif not plan.after_timing:
+        gaps.append("no after-surgery timing")
+    elif not _shows(plan.after_quote, AFTER_ACTION_CUES, AFTER_CONTEXT_CUES):
+        gaps.append("after-surgery quote doesn't show the action and timing")
+    names = ANTICOAGULANTS.get(drug, (drug,))
+    if not any(has_cue(q, [rf"\b{n}\b" for n in names]) for q in (plan.before_quote, plan.after_quote)):
+        gaps.append(f"plan quotes don't name {drug}")
+    if truncated:
+        gaps.append("notes too long to read in full")
+    return tuple(gaps)
+
+
+def _shows(quote: str | None, action: tuple[str, ...], context: tuple[str, ...]) -> bool:
+    # the quote itself must state the action, the time, and which side of surgery it's about
+    return has_cue(quote, action) and has_cue(quote, TIMING_CUES) and has_cue(quote, context)
+
+
+def _passages(docs: list[NormDoc], drugs: list[str], settings: Settings, reader: Reader) -> tuple[list[Passage], bool]:
+    keywords = [*PLAN_WORDS, *GENERIC_TERMS, *(n for d in drugs for n in ANTICOAGULANTS.get(d, (d,)))]
+    passages: list[Passage] = []
+    budget = settings.max_prompt_chars
+    truncated = False
+    for doc in docs:
+        pieces, cut = keyword_windows(doc.text_raw, keywords, settings.snippet_radius, budget)
+        truncated = truncated or cut
+        for piece in pieces:
+            passages.append(Passage(id=f"p{len(passages) + 1}", text=reader.redact(piece)))
+            budget -= len(piece)
+        if budget <= 0:
+            truncated = True
+            break
+    return passages, truncated
+
+
+def _short(reason: str | None) -> str:
+    return "automated reading unavailable" if not reason else reason.split(":")[0][:60]

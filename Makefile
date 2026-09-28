@@ -4,7 +4,7 @@ REPORT ?= data/eval_report.json
 DETERMINISM_REPORT ?= data/determinism_report.json
 MODEL ?= gpt-4.1-mini
 
-.PHONY: baseline evals determinism score report test all clean
+.PHONY: baseline evals determinism score report test all clean scenarios evals-full
 
 baseline:
 	uv run run_baseline.py \
@@ -39,10 +39,23 @@ test:
 		--with 'hypothesis>=6.100' \
 		python -m pytest tests
 
+# builds the hand-labeled scenarios, then scores seed + scenarios + each text check
+# MODE=pattern_only lets python wording checks approve on their own (offline, no llm)
+MODE ?= default
+
+scenarios:
+	uv run --with 'pydantic>=2.8.0' python -m evals.build_cases
+
+# LLM=openai (real api) or a scripted misbehaving llm: outage | garbage | cautious | yes_man
+LLM ?= openai
+
+evals-full:
+	uv run --with 'pydantic>=2.8.0' --with 'openai>=2.0.0' python -m evals.run_evals_full --mode $(MODE) --llm $(LLM) --model $(MODEL)
+
 all: baseline evals determinism score
 
 clean:
 	rm -f data/baseline_outputs.jsonl \
 		data/eval_report.json \
 		data/determinism_report.json
-	rm -rf data/audit
+	rm -rf data/audit evals/data data/eval_full_report.json

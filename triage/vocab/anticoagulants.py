@@ -1,5 +1,5 @@
 """anticoagulants we recognize, generic name -> every name it can appear under
-antiplatelets (aspirin, clopidogrel, ticagrelor, prasugrel) are left out on purpose, they don't trigger rule 3
+antiplatelets (aspirin, clopidogrel, ticagrelor, prasugrel) are left out on purpose
 """
 
 from __future__ import annotations

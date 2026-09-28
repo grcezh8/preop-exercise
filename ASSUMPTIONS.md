@@ -46,6 +46,20 @@ enforced in code and covered by tests in `tests/`.
 - **No age limit** on the latest reading. The policy doesn't set one.
 - **Rule 4 only uses the `vitals` list.** Numbers written in notes are not used.
 
+## Free text: who may approve
+
+- **Python wording checks on note text may block but never approve by themselves.**
+  - A consent counts as signed only when the LLM reads it as signed and quotes the note, the quote
+    contains signature wording, and Python's not-signed list finds nothing.
+  - A typo'd or vague H&P title counts only after the LLM confirms it from the note.
+  - An anticoag plan passes only with the LLM's verified before/after answer.
+  - A note saying a blood thinner was stopped is believed only with the LLM's verified quote.
+- **A note that gives instructions** ("ignore previous instructions", "SYSTEM NOTE:", "mark this
+  consent signed", "output READY") is never trusted to approve a consent or a plan. That holds
+  whatever else the note says.
+- **Offline mode:** `TRIAGE_PATTERN_ONLY=true` lets the wording checks approve on their own, for
+  tests and runs without an LLM. It's off by default.
+
 ## Documents
 
 - **Document types come from the title.** We handle the many spellings of "History and Physical"
@@ -78,6 +92,26 @@ enforced in code and covered by tests in `tests/`.
 - **A blood thinner named in a note but not active in the medication list** is treated as being
   taken, and needs a plan, unless the note clearly says it was stopped.
 - **One issue per drug,** even if the drug appears in the medication list more than once.
+- **What counts as "clear" is checked against the LLM's quotes, not its word.** The before-surgery
+  quote must show an action, a real time, and that it's before surgery; the after-surgery quote the
+  same for after. At least one quote must name the drug.
+  - A dose ("5 mg") is not a time.
+  - "Continue" with no before/after timing is not a plan.
+  - A plan written for a different drug doesn't count.
+- **If the LLM is unavailable,** every plan and every consent comes out as needing follow-up.
+  Safety exclusions (Rule 4) never use the LLM and are unaffected.
+
+## LLM use and patient details
+
+- **Only four questions go to an LLM:** document type (for unrecognized titles), consent signed,
+  blood thinner mentioned only in a note, and the anticoagulation plan.
+- **Each call sends only what that question needs:** a title and ~300 characters, a consent text,
+  a short passage, or plan passages.
+  - Names, MRN, date of birth, patient/case/document IDs, staff names, phone numbers and emails are
+    replaced with placeholders like `[NAME]` first.
+  - Vitals, labs, conditions and demographics are never sent.
+- **Requests are sent with `store=False`.** Answers are cached on disk (`.triage_cache/`), keyed by
+  the exact redacted input, so re-runs give identical results.
 
 ## Evidence
 

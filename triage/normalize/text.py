@@ -16,6 +16,8 @@ _CONFUSABLES = str.maketrans(
         "А": "A", "В": "B", "Е": "E", "К": "K", "М": "M", "Н": "H", "О": "O",
         "Р": "P", "С": "C", "Т": "T", "Х": "X", "Ѕ": "S", "І": "I", "Ј": "J",
         "ο": "o", "α": "a", "ε": "e", "ι": "i", "κ": "k", "ρ": "p", "τ": "t",
+        # curly quotes, so "hasn’t" reads like "hasn't"
+        "\u2019": "'", "\u2018": "'", "\u201c": '"', "\u201d": '"',
     }
 )
 # control and invisible characters, e.g. zero-width spaces used to split "sig​ned"
@@ -69,3 +71,31 @@ def _shorten(piece: str, limit: int) -> str:
         return piece
     cut = piece[:limit]
     return cut[: cut.rfind(" ")].strip() if " " in cut else cut
+
+
+def keyword_windows(raw: str, keywords: Iterable[str], radius: int, cap: int) -> tuple[list[str], bool]:
+    # pieces of the original text around each keyword, overlapping pieces merged, whole text when it's short
+    # returns (pieces, truncated), truncated means the cap cut something off
+    raw = raw.strip()
+    if len(raw) <= min(cap, 2 * radius):
+        return ([raw] if raw else []), False
+    lowered = raw.lower()
+    spans: list[list[int]] = []
+    for keyword in keywords:
+        for match in re.finditer(rf"\b{re.escape(keyword.lower())}", lowered):
+            spans.append([max(match.start() - radius, 0), min(match.end() + radius, len(raw))])
+    spans.sort()
+    merged: list[list[int]] = []
+    for span in spans:
+        if merged and span[0] <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], span[1])
+        else:
+            merged.append(span)
+    pieces: list[str] = []
+    used = 0
+    for start, end in merged:
+        if used + (end - start) > cap:
+            return pieces, True
+        pieces.append(raw[start:end])
+        used += end - start
+    return pieces, False

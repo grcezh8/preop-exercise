@@ -12,12 +12,14 @@ from tests.conftest import ROOT
 from tests.factories import days_before_procedure, ready
 from triage.config import Settings
 from triage.ingest import InvalidSubmission
+from triage.llm.fake import FakeLLMClient
 from triage.pipeline import run_triage, triage_submission
 from triage.render import OutputCheckError, build_output, check_output
 from triage.rules.common import issue
 from triage.schemas.output import TriageOutput
 
-SETTINGS = Settings(audit_enabled=False)
+SETTINGS = Settings(audit_enabled=False, pattern_only=True)
+DEFAULT = Settings(audit_enabled=False)
 DISAGREEMENTS = json.loads((ROOT / "evals" / "known_oracle_disagreements.json").read_text())["cases"]
 SEVERITY = {"READY": 0, "NEEDS_FOLLOW_UP": 1, "NOT_CLEARED": 2}
 
@@ -44,6 +46,25 @@ def test_seed_evidence_passes_harness_grounding_check(seed_cases: list[dict[str,
         assert run_evals._check_issues_value_grounding(case["submission"], out), case["case_id"]
 
 
+def test_default_mode_never_approves_consent_from_wording_alone() -> None:
+    # without an llm confirming it, "signed" wording can't pass the consent check
+    out = triage_submission(ready(), settings=DEFAULT, llm=FakeLLMClient())
+    assert out.decision == "NEEDS_FOLLOW_UP"
+    assert [i.description for i in out.issues] == ["Surgical consent not clearly signed"]
+    assert "could not be confirmed" in out.issues[0].evidence.details
+
+
+def test_default_mode_never_reaches_ready_on_seed_cases(seed_cases: list[dict[str, Any]]) -> None:
+    for case in seed_cases:
+        assert triage_submission(case["submission"], settings=DEFAULT, llm=FakeLLMClient()).decision != "READY", case["case_id"]
+
+
+def test_default_mode_still_finds_every_safety_issue(seed_cases: list[dict[str, Any]]) -> None:
+    for case in seed_cases:
+        if case["expected_output"]["decision"] == "NOT_CLEARED":
+            assert triage_submission(case["submission"], settings=DEFAULT, llm=FakeLLMClient()).decision == "NOT_CLEARED"
+
+
 def test_same_input_gives_identical_output(seed_cases: list[dict[str, Any]]) -> None:
     for case in seed_cases[:10]:
         first = run_triage(case["submission"], SETTINGS).output.model_dump_json()
@@ -53,7 +74,7 @@ def test_same_input_gives_identical_output(seed_cases: list[dict[str, Any]]) -> 
 def test_audit_record_has_no_patient_details_or_note_text(tmp_path: Path) -> None:
     sub = ready()
     sub["documents"][1]["text"] = "Consent documented but unsigned; awaiting patient signature."
-    run_triage(sub, Settings(audit_dir=tmp_path))
+    run_triage(sub, Settings(audit_dir=tmp_path, pattern_only=True))
     written = (tmp_path / "case_test.json").read_text()
     record = json.loads(written)
     assert record["decision"] == "NEEDS_FOLLOW_UP"

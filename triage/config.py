@@ -27,10 +27,16 @@ class Settings(BaseModel):
     max_concurrency: int = 8
     max_output_tokens: int = 800
 
+    # lets python wording checks approve free text on their own (consent signed, typo'd h&p titles)
+    # off by default, only for tests and offline runs without an llm, never for production
+    pattern_only: bool = False
+
     # longest document text we process, longer text is cut and marked truncated
     max_doc_chars: int = 20_000
     # characters kept on each side of a keyword when cutting passages for the LLM
     snippet_radius: int = 250
+    # most note text sent in one llm call, anything cut off blocks an approval
+    max_prompt_chars: int = 4_000
 
     cache_enabled: bool = True
     cache_dir: Path = Path(".triage_cache")

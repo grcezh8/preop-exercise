@@ -9,11 +9,16 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+#literal = enumlike validation
+
 Risk = Literal["LOW", "MODERATE", "HIGH"]
 RequiredTest = Literal["CBC", "CMP"]
 DocKind = Literal["HP", "VAGUE_HP", "CONSENT", "ANTICOAG_NOTE", "OTHER", "UNKNOWN"]
 # how a document's kind was decided, kept for the audit trace
 KindSource = Literal["rules", "fuzzy", "llm", "none"]
+
+#next stage of pipeline after input classes, stricter fields with types, immutable
+#keeps raw values for auditability
 
 
 class _Frozen(BaseModel):

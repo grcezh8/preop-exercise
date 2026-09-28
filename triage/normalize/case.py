@@ -38,7 +38,7 @@ MED_FUZZY_MIN_RATIO = 0.85
 MED_FUZZY_MIN_LENGTH = 6
 
 
-def normalize(submission: PatientSubmission, *, max_doc_chars: int) -> NormalizedCase:
+def normalize(submission: PatientSubmission, *, max_doc_chars: int, pattern_only: bool = False) -> NormalizedCase:
     procedure = submission.procedure
     return NormalizedCase(
         procedure=NormProcedure(
@@ -68,7 +68,7 @@ def normalize(submission: PatientSubmission, *, max_doc_chars: int) -> Normalize
             )
             for i, med in enumerate(submission.medications)
         ],
-        docs=[_document(i, doc, max_doc_chars) for i, doc in enumerate(submission.documents)],
+        docs=[_document(i, doc, max_doc_chars, pattern_only) for i, doc in enumerate(submission.documents)],
     )
 
 
@@ -153,10 +153,10 @@ def _required_test(lab: LabResult) -> RequiredTest | None:
     return None
 
 
-def _document(index: int, doc: Document, max_doc_chars: int) -> NormDoc:
+def _document(index: int, doc: Document, max_doc_chars: int, pattern_only: bool) -> NormDoc:
     text_raw = doc.text if isinstance(doc.text, str) else ""
     text_clean = clean(text_raw)
-    kind, source = classify_document(doc.type, text_clean[:max_doc_chars])
+    kind, source = classify_document(doc.type, text_clean[:max_doc_chars], pattern_only=pattern_only)
     return NormDoc(
         index=index,
         title_raw=doc.type if isinstance(doc.type, str) else "",

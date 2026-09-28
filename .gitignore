@@ -36,3 +36,7 @@ data/determinism_report.json
 data/audit/
 .triage_cache/
 .hypothesis/
+
+# generated eval data, rebuilt by make scenarios / make evals-full
+evals/data/
+data/eval_full_report.json

@@ -22,7 +22,7 @@ def clean_title(title: object) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def classify_document(title: object, text_clean: str) -> tuple[DocKind, KindSource]:
+def classify_document(title: object, text_clean: str, *, pattern_only: bool = False) -> tuple[DocKind, KindSource]:
     text = clean_title(title)
     if not text:
         return "UNKNOWN", "none"
@@ -38,8 +38,9 @@ def classify_document(title: object, text_clean: str) -> tuple[DocKind, KindSour
     if _any(vocab.OTHER, text):
         return "OTHER", "rules"
     if _fuzzy_contains(text, vocab.FUZZY_HP):
-        # a typo'd title only counts when the note itself says h&p, otherwise the llm reads it
-        return ("HP", "fuzzy") if _mentions_hp(text_clean) else ("VAGUE_HP", "fuzzy")
+        # a typo'd title is confirmed by the llm reading the note, python may only confirm it in pattern_only mode
+        confirmed = pattern_only and _mentions_hp(text_clean)
+        return ("HP", "fuzzy") if confirmed else ("VAGUE_HP", "fuzzy")
     return "UNKNOWN", "none"
 
 
