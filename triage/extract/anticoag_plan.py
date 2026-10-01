@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from triage.config import Settings
 from triage.extract.reader import Reader, has_cue, quote_found
 from triage.normalize.case import find_anticoagulants
-from triage.normalize.text import find_first, keyword_windows
+from triage.normalize.text import clean, find_first, keyword_windows
 from triage.schemas.findings import NoteMention, PlanFinding
 from triage.schemas.llm import DrugPlan, Passage, PlanAnswer, PlanPrompt
 from triage.schemas.normalized import NormalizedCase, NormDoc
@@ -145,10 +145,10 @@ def _read_plans(
     if asked.value is None:
         return {drug: (f"plan could not be read ({_short(asked.reason)})",) for drug in drugs}, False
     by_drug = {p.drug.strip().casefold(): p for p in asked.value.plans}
-    return {drug: _gaps(by_drug[drug], drug, truncated) for drug in drugs}, True
+    return {drug: _gaps(by_drug[drug], drug, truncated, passages) for drug in drugs}, True
 
 
-def _gaps(plan: DrugPlan, drug: str, truncated: bool) -> tuple[str, ...]:
+def _gaps(plan: DrugPlan, drug: str, truncated: bool, passages: list[Passage]) -> tuple[str, ...]:
     # what's missing from the llm's answer, checked in code against the quotes it gave
     gaps: list[str] = []
     if plan.says_pending:
@@ -165,12 +165,22 @@ def _gaps(plan: DrugPlan, drug: str, truncated: bool) -> tuple[str, ...]:
         gaps.append("no after-surgery timing")
     elif not _shows(plan.after_quote, AFTER_ACTION_CUES, AFTER_CONTEXT_CUES):
         gaps.append("after-surgery quote doesn't show the action and timing")
-    names = ANTICOAGULANTS.get(drug, (drug,))
-    if not any(has_cue(q, [rf"\b{n}\b" for n in names]) for q in (plan.before_quote, plan.after_quote)):
+    if not any(_about_drug(q, drug, passages) for q in (plan.before_quote, plan.after_quote)):
         gaps.append(f"plan quotes don't name {drug}")
     if truncated:
         gaps.append("notes too long to read in full")
     return tuple(gaps)
+
+
+def _about_drug(quote: str | None, drug: str, passages: list[Passage]) -> bool:
+    # the quote names the drug, or comes from a passage that names this drug and no other blood thinner,
+    # e.g. "Enoxaparin: last dose 24 h before surgery" quoted as "last dose 24 h before surgery"
+    if not quote:
+        return False
+    if any(generic == drug for generic, _ in find_anticoagulants(clean(quote))):
+        return True
+    source = next((p.text for p in passages if quote_found(quote, p.text)), "")
+    return {generic for generic, _ in find_anticoagulants(clean(source))} == {drug}
 
 
 def _shows(quote: str | None, action: tuple[str, ...], context: tuple[str, ...]) -> bool:

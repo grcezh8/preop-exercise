@@ -133,7 +133,6 @@ def test_fake_client_parses_and_records() -> None:
 def test_fake_client_failures_are_values_not_exceptions(handler: Any) -> None:
     result = FakeLLMClient({"consent": handler}).parse(_request())
     assert isinstance(result, LLMFailed)
-    assert result.ok is False
 
 
 def test_fake_client_without_handler_fails() -> None:

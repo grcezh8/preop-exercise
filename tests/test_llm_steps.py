@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from tests.conftest import ROOT, load_seed_cases
+from tests.conftest import load_seed_cases
 from tests.factories import ready
 from triage.config import Settings
 from triage.llm.base import LLMRequest
@@ -248,3 +248,21 @@ def _scenario_lines() -> list[str]:
 
     main()
     return [line for line in OUT_PATH.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def test_plan_quote_without_drug_name_counts_when_its_passage_names_only_that_drug() -> None:
+    text = "Enoxaparin: last dose 24 h before surgery; resume 12 h post-op."
+    out, _ = triage(with_plan(text, med="enoxaparin"), anticoag_plan=plan_answer("last dose 24 h before surgery", "resume 12 h post-op", drug="enoxaparin"))
+    assert out.decision == "READY"
+
+
+def test_plan_quote_without_drug_name_fails_when_its_passage_names_two_drugs() -> None:
+    sub = with_plan("Apixaban and enoxaparin noted. Last dose 24 h before surgery; resume 12 h post-op.")
+    sub["medications"].append({"name": "enoxaparin", "active": True})
+
+    def answer(request: LLMRequest[Any]) -> dict[str, Any]:
+        return {"plans": [plan_answer("Last dose 24 h before surgery", "resume 12 h post-op", drug=d)(request)["plans"][0] for d in data(request)["drugs"]]}
+
+    out, _ = triage(sub, anticoag_plan=answer)
+    assert [i.description for i in out.issues] == ["Missing perioperative anticoagulation plan"] * 2
+    assert all("don't name" in i.evidence.details for i in out.issues)

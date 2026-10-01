@@ -111,7 +111,7 @@ def reader(handlers: dict[str, Any]) -> tuple[Reader, FakeLLMClient]:
 def test_rejected_answer_is_retried_once_with_the_reason() -> None:
     answers = iter([{"status": "SIGNED", "quote": "made up"}, {"status": "SIGNED", "quote": "signed today"}])
     r, client = reader({"consent": lambda req: next(answers)})
-    check = lambda a: None if quote_found(a.quote, "Consent signed today.") else "quote is not in the text"  # noqa: E731
+    check = lambda a: None if quote_found(a.quote, "Consent signed today.") else "quote is not in the text"
     asked = r.ask("consent", ConsentPrompt(text="Consent signed today."), ConsentAnswer, check)
     assert asked.value is not None and asked.value.quote == "signed today"
     assert "rejected: quote is not in the text" in client.calls[1].input_text

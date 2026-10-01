@@ -1,3 +1,7 @@
+# loads OPENAI_API_KEY from .env (gitignored) when present
+-include .env
+export OPENAI_API_KEY
+
 INPUT ?= data/patients_sample_50.jsonl
 OUTPUT ?= data/baseline_outputs.jsonl
 REPORT ?= data/eval_report.json

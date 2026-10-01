@@ -5,7 +5,11 @@ from __future__ import annotations
 import datetime as dt
 import math
 import re
+from typing import get_args
 
+from triage.schemas.normalized import Risk
+
+RISKS: tuple[Risk, ...] = get_args(Risk)
 _DATE_ONLY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
@@ -53,11 +57,14 @@ def parse_bool(value: object) -> bool | None:
     return value if isinstance(value, bool) else None
 
 
-def parse_risk(value: object) -> str | None:
+def parse_risk(value: object) -> Risk | None:
     if not isinstance(value, str):
         return None
     risk = value.strip().upper()
-    return risk if risk in ("LOW", "MODERATE", "HIGH") else None
+    for level in RISKS:
+        if risk == level:
+            return level
+    return None
 
 
 def show(value: object) -> str:

@@ -32,7 +32,6 @@ class FakeLLMClient:
             step=request.step,
             model=request.model,
             prompt_version=request.prompt_version,
-            attempts=1,
         )
         handler = self.handlers.get(request.step)
         if handler is None:

@@ -4,7 +4,7 @@ returns LLMOk with parsed value or LLMFailed with a reason
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Generic, Protocol, TypeVar
 
 from pydantic import BaseModel
@@ -27,7 +27,6 @@ class CallMeta:
     model: str
     prompt_version: str
     cache_hit: bool = False
-    attempts: int = 0
     latency_ms: float = 0.0
     input_tokens: int = 0
     output_tokens: int = 0
@@ -37,14 +36,12 @@ class CallMeta:
 class LLMOk(Generic[T]):
     value: T
     meta: CallMeta
-    ok: bool = field(default=True, init=False)
 
 
 @dataclass(frozen=True)
 class LLMFailed:
     reason: str
     meta: CallMeta
-    ok: bool = field(default=False, init=False)
 
 
 LLMResult = LLMOk[T] | LLMFailed

@@ -160,7 +160,6 @@ def _document(index: int, doc: Document, max_doc_chars: int, pattern_only: bool)
     return NormDoc(
         index=index,
         title_raw=doc.type if isinstance(doc.type, str) else "",
-        title_clean=clean(doc.type),
         kind=kind,
         kind_source=source,
         date=parse_date(doc.date),

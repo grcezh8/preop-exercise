@@ -20,8 +20,8 @@ _CONFUSABLES = str.maketrans(
         "\u2019": "'", "\u2018": "'", "\u201c": '"', "\u201d": '"',
     }
 )
-# control and invisible characters, e.g. zero-width spaces used to split "sig​ned"
-_INVISIBLE = re.compile(r"[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f​-‏⁠﻿]")
+# control and invisible characters, e.g. zero-width spaces used to split "signed"
+_INVISIBLE = re.compile(r"[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u200b-\u200f\u2060\ufeff]")
 _SPACES = re.compile(r"\s+")
 
 
@@ -33,9 +33,6 @@ def clean(value: object) -> str:
     text = _INVISIBLE.sub("", text)
     return _SPACES.sub(" ", text).strip().casefold()
 
-
-def has_confusables(value: object) -> bool:
-    return isinstance(value, str) and value.translate(_CONFUSABLES) != value
 
 
 def find_first(patterns: Iterable[str], text: str) -> re.Match[str] | None:

@@ -4,8 +4,10 @@ strict json schema answers, store=False, sdk retries for rate limits and server 
 
 from __future__ import annotations
 
+import os
 import threading
 import time
+from functools import cache
 from typing import Any
 
 from triage.config import Settings
@@ -25,7 +27,7 @@ class OpenAIClient:
         self._sdk = sdk_client
 
     def parse(self, request: LLMRequest[T]) -> LLMResult[T]:
-        meta = CallMeta(step=request.step, model=request.model, prompt_version=request.prompt_version, attempts=1)
+        meta = CallMeta(step=request.step, model=request.model, prompt_version=request.prompt_version)
         kwargs: dict[str, Any] = {
             "model": request.model,
             "instructions": request.instructions,
@@ -80,11 +82,15 @@ class UnavailableClient:
 
 def default_client(settings: Settings) -> Any:
     # openai behind the answer cache, or an always-failing client when there's no key or no sdk
-    import os
+    # one client per settings and key, shared across cases so they share connections and the in-flight cap
+    return _shared_client(settings, os.environ.get("OPENAI_API_KEY", ""))
 
+
+@cache
+def _shared_client(settings: Settings, api_key: str) -> Any:
     from triage.llm.cache import CachingClient
 
-    if not os.environ.get("OPENAI_API_KEY"):
+    if not api_key:
         return UnavailableClient("OPENAI_API_KEY is not set")
     try:
         client: Any = OpenAIClient(settings)

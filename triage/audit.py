@@ -38,7 +38,6 @@ class LLMCallTrace(BaseModel):
     ok: bool
     reason: str | None = None
     cache_hit: bool = False
-    attempts: int = 0
     latency_ms: float = 0.0
     input_tokens: int = 0
     output_tokens: int = 0
@@ -82,7 +81,7 @@ def build_record(
         input_warnings=warnings,
         documents=[DocTrace(index=d.index, kind=d.kind, kind_source=d.kind_source, truncated=d.truncated) for d in case.docs],
         consent=findings.consent.model_dump(exclude={"cue"}) if findings.consent else None,
-        note_mentions=[m.model_dump(exclude={"quote"}) for m in findings.note_mentions],
+        note_mentions=[m.model_dump() for m in findings.note_mentions],
         plans=[p.model_dump() for p in findings.plans],
         rules=rules,
         llm_calls=[
@@ -93,7 +92,6 @@ def build_record(
                 ok=ok,
                 reason=reason,
                 cache_hit=meta.cache_hit,
-                attempts=meta.attempts,
                 latency_ms=meta.latency_ms,
                 input_tokens=meta.input_tokens,
                 output_tokens=meta.output_tokens,

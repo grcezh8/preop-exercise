@@ -172,7 +172,7 @@ def _issue_scores(records: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
 def _doc(text: str, title: str = "", kind: str | None = None, pattern_only: bool = False) -> NormDoc:
     found, source = classify_document(title, clean(text), pattern_only=pattern_only)
     return NormDoc(
-        index=0, title_raw=title, title_clean=clean(title), kind=kind or found, kind_source=source,
+        index=0, title_raw=title, kind=kind or found, kind_source=source,
         date=None, text_raw=text, text_clean=clean(text),
     )
 

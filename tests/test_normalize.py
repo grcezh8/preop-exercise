@@ -226,7 +226,7 @@ def test_consent_patterns(text: str, status: str) -> None:
 def test_look_alike_letters_are_mapped() -> None:
     # cyrillic "ѕ" can't hide "unsigned" from the check
     assert pattern_consent(clean("Consent unѕigned"))[0] == "NOT_SIGNED"
-    assert clean("sig​ned") == "signed"
+    assert clean("sig\u200bned") == "signed"
 
 
 def test_excerpt_is_exact_substring_of_long_text() -> None:

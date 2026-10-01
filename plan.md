@@ -257,8 +257,8 @@ Drugs listed with `active: null` already produce "Unknown anticoagulant active s
     evening, post-op day), and the before side (before/prior/pre-op). A bare number like a dose
     doesn't count as a time;
   - the same for after surgery (resume/restart/…, a real time, after/post-op);
-  - at least one of the quotes names that drug (generic or brand), so a plan written for another
-    drug can't be reused;
+  - at least one quote names that drug (generic or brand), or comes from a passage that names this
+    drug and no other blood thinner, so a plan written for another drug can't be reused;
   - the LLM found no "pending" wording, and Python's pending/injection list finds nothing in the
     notes;
   - the passages weren't cut off for length.

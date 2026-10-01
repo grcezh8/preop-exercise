@@ -37,7 +37,6 @@ class NoteMention(_Frozen):
     word: str
     taking: Taking
     decided_by: DecidedBy
-    quote: str | None = None
 
 
 class PlanFinding(_Frozen):

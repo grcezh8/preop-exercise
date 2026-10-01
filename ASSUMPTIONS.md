@@ -94,7 +94,8 @@ enforced in code and covered by tests in `tests/`.
 - **One issue per drug,** even if the drug appears in the medication list more than once.
 - **What counts as "clear" is checked against the LLM's quotes, not its word.** The before-surgery
   quote must show an action, a real time, and that it's before surgery; the after-surgery quote the
-  same for after. At least one quote must name the drug.
+  same for after. At least one quote must name the drug, or come from a passage that names only that
+  drug (so "Enoxaparin: last dose 24 h before surgery" quoted without the label still counts).
   - A dose ("5 mg") is not a time.
   - "Continue" with no before/after timing is not a plan.
   - A plan written for a different drug doesn't count.

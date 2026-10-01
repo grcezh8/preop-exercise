@@ -81,7 +81,6 @@ class NormMed(_Frozen):
 class NormDoc(_Frozen):
     index: int
     title_raw: str
-    title_clean: str
     kind: DocKind
     kind_source: KindSource
     date: dt.date | None

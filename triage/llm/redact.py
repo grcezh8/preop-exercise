@@ -18,6 +18,7 @@ _PATTERNS: tuple[tuple[str, str], ...] = (
     (r"\bMRN\s*[-:#]?\s*\w+", "[MRN]"),
     (r"\b\d{7,}\b", "[NUMBER]"),
 )
+_COMPILED = [(re.compile(pattern, re.IGNORECASE), label) for pattern, label in _PATTERNS]
 
 
 class Redactor:
@@ -30,10 +31,10 @@ class Redactor:
         ]
 
     def __call__(self, text: str) -> str:
-        for pattern, label in self._terms:
+        for term, label in self._terms:
+            text = term.sub(label, text)
+        for pattern, label in _COMPILED:
             text = pattern.sub(label, text)
-        for pattern, label in _PATTERNS:
-            text = re.sub(pattern, label, text, flags=re.IGNORECASE)
         return text
 
 
